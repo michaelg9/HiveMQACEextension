@@ -1,0 +1,3 @@
+image:https://travis-ci.org/michaelg9/HiveMQACEextension.svg["Build Status", link="https://travis-ci.org/michaelg9/HiveMQACEextension"]
+image:https://codecov.io/gh/michaelg9/HiveMQACEextension/branch/master/graph/badge.svg["Coverage Status", link="https://codecov.io/gh/michaelg9/HiveMQACEextension"]
+
