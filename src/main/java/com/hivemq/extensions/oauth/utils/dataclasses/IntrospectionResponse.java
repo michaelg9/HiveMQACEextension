@@ -1,6 +1,6 @@
 package com.hivemq.extensions.oauth.utils.dataclasses;
 
-public class IntrospectionResponse {
+public final class IntrospectionResponse {
     public boolean active;
     public String profile;
     public String exp;
