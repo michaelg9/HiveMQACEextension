@@ -9,11 +9,11 @@ public final class IntrospectionResponse {
     public String[] scope;
     public CNF cnf;
 
-    static class CNF {
+    public static class CNF {
         public JWK jwk;
     }
 
-    static class JWK {
+    public static class JWK {
         public String alg;
         public String kty;
         public String k;

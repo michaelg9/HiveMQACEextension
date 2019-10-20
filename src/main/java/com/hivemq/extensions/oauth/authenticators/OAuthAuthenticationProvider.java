@@ -1,4 +1,4 @@
-package com.hivemq.extensions.oauth.authentication;
+package com.hivemq.extensions.oauth.authenticators;
 
 import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extension.sdk.api.auth.Authenticator;

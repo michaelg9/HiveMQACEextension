@@ -3,8 +3,8 @@ package com.hivemq.extensions.oauth.utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hivemq.extension.sdk.api.annotations.NotNull;
-import com.hivemq.extension.sdk.api.annotations.Nullable;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
+import com.hivemq.extensions.oauth.exceptions.RSUnauthenticatedException;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.io.IOException;
@@ -32,8 +32,9 @@ public class OauthHttpClient {
     }
 
 
-    public @Nullable IntrospectionResponse tokenIntrospectionRequest(String authorizationHeader,
-                                                                     Map<String, String> body) throws ASUnreachableException {
+    public @NotNull IntrospectionResponse tokenIntrospectionRequest(String authorizationHeader,
+                                                                     Map<String, String> body)
+            throws ASUnreachableException {
         String encodedAuth = Base64.getEncoder().encodeToString((authorizationHeader).getBytes());
         String stringifiedBody;
         try {
@@ -57,7 +58,7 @@ public class OauthHttpClient {
         }
         if (response.statusCode() != 200) {
             // token introspection failed, invalid token
-            return null;
+            throw new RSUnauthenticatedException();
         }
         IntrospectionResponse introspectionResponse;
         try {

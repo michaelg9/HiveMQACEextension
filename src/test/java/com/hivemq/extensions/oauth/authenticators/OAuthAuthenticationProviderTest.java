@@ -1,4 +1,4 @@
-package com.hivemq.extensions.oauth.authentication;
+package com.hivemq.extensions.oauth.authenticators;
 
 import com.hivemq.extension.sdk.api.auth.parameter.AuthenticatorProviderInput;
 import com.hivemq.extension.sdk.api.packets.general.MqttVersion;
