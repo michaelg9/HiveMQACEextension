@@ -5,82 +5,67 @@ import com.hivemq.extension.sdk.api.auth.SimpleAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthInput;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
 import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
-import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
 import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
-import com.hivemq.extensions.oauth.utils.OauthHttpClient;
+import com.hivemq.extensions.oauth.utils.Constants;
+import com.hivemq.extensions.oauth.http.OauthHttpClient;
 import com.hivemq.extensions.oauth.utils.StringUtils;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
+
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME_PASSWORD_MISSING;
 
 /**
  * @author Michael Michaelides
  * OAuth2 authenticator for ACE.
- * Supports both v3.1.1 and v5
+ * Supports v3.1.1 ACE authentication
  */
 
 public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
     private final String auth = "p*6oso!eI3D2wshK:BByUwb7/FizssDcmI0AGVtIR8vvuZJR0pa7sWF7mDdw=";
-    private OauthHttpClient oauthHttpClient = new OauthHttpClient("127.0.0.1", "3001");
+    private final OauthHttpClient oauthHttpClient = new OauthHttpClient();
 
     @Override
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput,
                           @NotNull SimpleAuthOutput simpleAuthOutput) {
         if (!simpleAuthInput.getConnectPacket().getAuthenticationMethod().orElse("")
-                .equalsIgnoreCase("ACE")) {
+                .equalsIgnoreCase(Constants.ACE)) {
             simpleAuthOutput.nextExtensionOrDefault();
             return;
         }
         String token = simpleAuthInput.getConnectPacket().getUserName().orElse("");
-        String mac = StandardCharsets.UTF_8.decode(
-                simpleAuthInput.getConnectPacket().getPassword().orElse(ByteBuffer.allocate(0))
-        ).toString();
-        if (StringUtils.isEmpty(token) || StringUtils.isEmpty(mac)) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD,
-                    "Username must be set to the token and password must be the MAC/DiSig");
+        byte[] mac = simpleAuthInput.getConnectPacket().getPassword().orElse(ByteBuffer.allocate(0)).array();
+
+        if (StringUtils.isEmpty(token) || mac.length == 0) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, USERNAME_PASSWORD_MISSING);
             return;
         }
         IntrospectionResponse introspectionResponse;
         try {
-            introspectionResponse = introspectToken(token);
+            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(auth, token);
         } catch (ASUnreachableException e) {
             e.printStackTrace();
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE,
-                    "Authorization server is unavailable. Please try later");
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
             return;
         }
-        if (!introspectionResponse.active) {
-            simpleAuthOutput.failAuthentication(
-                    ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD,
-                    "Expired token.");
+        if (!introspectionResponse.isActive()) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, EXPIRED_TOKEN);
             return;
         }
-        boolean isValidPOP = validatePOP(introspectionResponse, token, mac, simpleAuthInput.getConnectPacket());
+        MACCalculator macCalculator = new MACCalculator(
+                introspectionResponse.getCnf().getJwk().getK(),
+                token,
+                introspectionResponse.getCnf().getJwk().getAlg());
+        boolean isValidPOP = macCalculator.validatePOP(mac, simpleAuthInput.getConnectPacket());
         if (!isValidPOP) {
-            simpleAuthOutput.failAuthentication(
-                    ConnackReasonCode.NOT_AUTHORIZED, "Unable to proof possession of token");
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         } else {
             simpleAuthOutput.authenticateSuccessfully();
         }
     }
 
-    IntrospectionResponse introspectToken(@NotNull String token) throws
-            ASUnreachableException {
-        Map<String, String> body = new HashMap<>(1);
-        body.put("token", token);
-        return oauthHttpClient.tokenIntrospectionRequest(auth, body);
-    }
-
-    boolean validatePOP(IntrospectionResponse introspectionResponse,
-                        String token,
-                        String mac,
-                        ConnectPacket connectPacket) {
-        MACCalculator macCalculator = new MACCalculator(introspectionResponse.cnf.jwk.k, token, introspectionResponse.cnf.jwk.alg);
-        String calculatedMAC = macCalculator.compute_hmac(connectPacket);
-        return calculatedMAC.equals(mac);
-    }
 }

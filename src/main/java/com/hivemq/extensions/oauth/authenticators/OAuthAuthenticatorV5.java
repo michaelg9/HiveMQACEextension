@@ -5,68 +5,92 @@ import com.hivemq.extension.sdk.api.auth.SimpleAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthInput;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
 import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
+import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
-import com.hivemq.extensions.oauth.utils.StringUtils;
+import com.hivemq.extensions.oauth.http.OauthHttpClient;
+import com.hivemq.extensions.oauth.utils.AuthData;
+import com.hivemq.extensions.oauth.utils.Constants;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
+import java.nio.charset.MalformedInputException;
+import java.util.Optional;
+
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.MISSING_TOKEN;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
+
+/**
+ * @author Michael Michaelides
+ * OAuth2 authenticator for ACE.
+ * Supports v5 ACE authentication
+ *
+ * TODO: separator or length? How to communicate separator
+ * ToDo: use extended auth methods.
+ */
+
 public class OAuthAuthenticatorV5 implements SimpleAuthenticator {
+    private final String auth = "p*6oso!eI3D2wshK:BByUwb7/FizssDcmI0AGVtIR8vvuZJR0pa7sWF7mDdw=";
+    private final OauthHttpClient oauthHttpClient = new OauthHttpClient();
+    private final String asServer = "127.0.0.1";
 
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
         if (!simpleAuthInput.getConnectPacket().getAuthenticationMethod().orElse("")
-                .equalsIgnoreCase("ACE")) {
+                .equalsIgnoreCase(Constants.ACE)) {
             simpleAuthOutput.nextExtensionOrDefault();
             return;
         }
         if (simpleAuthInput.getConnectPacket().getAuthenticationData().isEmpty()) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.USE_ANOTHER_SERVER, "127.0.0.1");
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.USE_ANOTHER_SERVER, asServer);
             return;
         }
         // retrieve token and pop from authentication data
-        String authData = new String(simpleAuthInput.getConnectPacket().getAuthenticationData().get().array());
+        AuthData authData = new AuthData(simpleAuthInput.getConnectPacket().getAuthenticationData().get());
         String token;
-        String mac = null;
-        if (authData.contains("NEXT")) {
-            String[] parts = authData.split("NEXT");
-            token = parts[0];
-            mac = parts[1];
-        } else {
-            token = authData;
-        }
-        if (StringUtils.isEmpty(token)) {
-            // invalid authentication
-            // ToDo: use a different reason code
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD,
-                    "Authentication token expected when using ACE authentication");
+        try {
+            token = authData.getToken();
+        } catch (MalformedInputException e) {
+            e.printStackTrace();
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.MALFORMED_PACKET, MISSING_TOKEN);
             return;
         }
-        OAuthAuthenticatorV3 oAuthAuthenticatorV3 = new OAuthAuthenticatorV3();
         IntrospectionResponse introspectionResponse;
         try {
-            introspectionResponse = oAuthAuthenticatorV3.introspectToken(token);
+            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(auth, token);
         } catch (ASUnreachableException e) {
             e.printStackTrace();
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE,
-                    "Authorization server is unavailable. Please try later");
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
             return;
         }
-        if (!introspectionResponse.active) {
-            simpleAuthOutput.failAuthentication(
-                    ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD,
-                    "Expired token.");
+        if (!introspectionResponse.isActive()) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, EXPIRED_TOKEN);
+            return;
+        }
+        Optional<byte[]> mac;
+        try {
+            mac = authData.getData();
+        } catch (MalformedInputException e) {
+            e.printStackTrace();
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.MALFORMED_PACKET, "Authentication data malformed.");
             return;
         }
         boolean isValidPOP = false;
-        if (!StringUtils.isEmpty(mac)) {
-            isValidPOP = oAuthAuthenticatorV3.validatePOP(introspectionResponse, token, mac, simpleAuthInput.getConnectPacket());
+        MACCalculator macCalculator = new MACCalculator(
+                introspectionResponse.getCnf().getJwk().getK(),
+                token,
+                introspectionResponse.getCnf().getJwk().getAlg());
+        if (mac.isPresent()) {
+            isValidPOP = macCalculator.validatePOP(mac.get(), simpleAuthInput.getConnectPacket());
         } else {
             // ToDo: use extended auth methods.
             throw new UnsupportedOperationException("Not yet implemented");
         }
         if (!isValidPOP) {
-            simpleAuthOutput.failAuthentication(
-                    ConnackReasonCode.NOT_AUTHORIZED, "Unable to proof possession of token");
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         } else {
             simpleAuthOutput.authenticateSuccessfully();
         }
     }
+
+
 }

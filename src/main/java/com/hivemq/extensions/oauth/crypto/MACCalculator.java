@@ -7,6 +7,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 /**
  * TODO:
@@ -15,8 +16,6 @@ import java.security.NoSuchAlgorithmException;
  * define separator
  */
 public class MACCalculator {
-
-    private final String separator = "NEXT";
     private final String algorithm = "HmacSHA256";
     private final String key;
     private final String token;
@@ -26,14 +25,19 @@ public class MACCalculator {
         this.token = token;
     }
 
-    public String compute_hmac(final ConnectPacket connect) {
+    public boolean validatePOP(
+                        byte[] mac,
+                        ConnectPacket connectPacket) {
+        return Arrays.equals(mac, compute_hmac(connectPacket));
+    }
+
+    byte[] compute_hmac(final ConnectPacket connect) {
         final byte[] byteKey = key.getBytes(StandardCharsets.UTF_8);
         try {
             final Mac sha512_HMAC = Mac.getInstance(algorithm);
             final SecretKeySpec keySpec = new SecretKeySpec(byteKey, algorithm);
             sha512_HMAC.init(keySpec);
-            final byte[] mac_data = sha512_HMAC.doFinal(token.getBytes());
-            return bytesToHex(mac_data);
+            return bytesToHex(sha512_HMAC.doFinal(token.getBytes())).getBytes();
         } catch (final NoSuchAlgorithmException | InvalidKeyException e) {
             // should never happen for the case of HmacSHA1 / HmacSHA256
             e.printStackTrace();
@@ -51,4 +55,5 @@ public class MACCalculator {
         }
         return new String(hexChars);
     }
+
 }
