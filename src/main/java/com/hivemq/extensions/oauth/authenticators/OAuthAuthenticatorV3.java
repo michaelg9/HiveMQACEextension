@@ -60,7 +60,7 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
                 introspectionResponse.getCnf().getJwk().getK(),
                 token,
                 introspectionResponse.getCnf().getJwk().getAlg());
-        boolean isValidPOP = macCalculator.validatePOP(mac, simpleAuthInput.getConnectPacket());
+        boolean isValidPOP = macCalculator.validatePOP(mac, token.getBytes());
         if (!isValidPOP) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         } else {

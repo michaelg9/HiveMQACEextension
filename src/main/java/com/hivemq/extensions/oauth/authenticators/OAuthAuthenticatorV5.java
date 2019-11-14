@@ -1,6 +1,7 @@
 package com.hivemq.extensions.oauth.authenticators;
 
 import com.hivemq.extension.sdk.api.annotations.NotNull;
+import com.hivemq.extension.sdk.api.auth.ExtendedAuthenticator;
 import com.hivemq.extension.sdk.api.auth.SimpleAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthInput;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
@@ -12,8 +13,10 @@ import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.Constants;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.MalformedInputException;
 import java.util.Optional;
+import java.util.Random;
 
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
@@ -29,10 +32,12 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAIL
  * ToDo: use extended auth methods.
  */
 
-public class OAuthAuthenticatorV5 implements SimpleAuthenticator {
+public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthenticator {
     private final String auth = "p*6oso!eI3D2wshK:BByUwb7/FizssDcmI0AGVtIR8vvuZJR0pa7sWF7mDdw=";
     private final OauthHttpClient oauthHttpClient = new OauthHttpClient();
     private final String asServer = "127.0.0.1";
+    private MACCalculator macCalculator;
+    byte[] nonce;
 
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
         if (!simpleAuthInput.getConnectPacket().getAuthenticationMethod().orElse("")
@@ -75,15 +80,17 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator {
             return;
         }
         boolean isValidPOP = false;
-        MACCalculator macCalculator = new MACCalculator(
+        macCalculator = new MACCalculator(
                 introspectionResponse.getCnf().getJwk().getK(),
                 token,
                 introspectionResponse.getCnf().getJwk().getAlg());
         if (mac.isPresent()) {
-            isValidPOP = macCalculator.validatePOP(mac.get(), simpleAuthInput.getConnectPacket());
+            isValidPOP = macCalculator.validatePOP(mac.get(), token.getBytes());
         } else {
-            // ToDo: use extended auth methods.
-            throw new UnsupportedOperationException("Not yet implemented");
+            nonce = new byte[32];
+            new Random().nextBytes(nonce);
+            simpleAuthOutput.continueToAuth(nonce);
+            return;
         }
         if (!isValidPOP) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
@@ -92,5 +99,26 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator {
         }
     }
 
-
+    public void onAUTH(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
+        if (!simpleAuthInput.getAuthPacket().getAuthenticationMethod().equalsIgnoreCase(Constants.ACE)) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_AUTHENTICATION_METHOD, "Should be ACE");
+            return;
+        }
+        AuthData authData = new AuthData(simpleAuthInput.getAuthPacket().getAuthenticationData());
+        Optional<byte[]> mac;
+        try {
+            mac = authData.getData();
+            if (mac.isEmpty()) throw new MalformedInputException(0);
+        } catch (MalformedInputException e) {
+            e.printStackTrace();
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.MALFORMED_PACKET, "Authentication data malformed.");
+            return;
+        }
+        boolean isValidPOP = macCalculator.validatePOP(mac.get(), nonce);
+        if (isValidPOP) {
+            simpleAuthOutput.authenticateSuccessfully();
+        } else {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
+        }
+    }
 }

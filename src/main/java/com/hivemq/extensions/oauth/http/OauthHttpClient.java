@@ -76,7 +76,7 @@ public class OauthHttpClient {
         IntrospectionResponse introspectionResponse;
         try {
             introspectionResponse = objectMapper.readValue(response.body(), IntrospectionResponse.class);
-        } catch (JsonProcessingException e) {
+        } catch (IOException e) {
             // Should never happen
             throw new IllegalArgumentException("Failed to parse POST response", e);
         }

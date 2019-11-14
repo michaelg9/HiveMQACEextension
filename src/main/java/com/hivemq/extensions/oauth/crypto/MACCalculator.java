@@ -27,17 +27,17 @@ public class MACCalculator {
 
     public boolean validatePOP(
                         byte[] mac,
-                        ConnectPacket connectPacket) {
-        return Arrays.equals(mac, compute_hmac(connectPacket));
+                        byte[] plain) {
+        return Arrays.equals(mac, compute_hmac(plain));
     }
 
-    byte[] compute_hmac(final ConnectPacket connect) {
+    byte[] compute_hmac(final byte[] content) {
         final byte[] byteKey = key.getBytes(StandardCharsets.UTF_8);
         try {
             final Mac sha512_HMAC = Mac.getInstance(algorithm);
             final SecretKeySpec keySpec = new SecretKeySpec(byteKey, algorithm);
             sha512_HMAC.init(keySpec);
-            return bytesToHex(sha512_HMAC.doFinal(token.getBytes())).getBytes();
+            return bytesToHex(sha512_HMAC.doFinal(content)).getBytes();
         } catch (final NoSuchAlgorithmException | InvalidKeyException e) {
             // should never happen for the case of HmacSHA1 / HmacSHA256
             e.printStackTrace();
