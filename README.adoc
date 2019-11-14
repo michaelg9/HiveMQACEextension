@@ -1,3 +1,17 @@
 image:https://travis-ci.org/michaelg9/HiveMQACEextension.svg["Build Status", link="https://travis-ci.org/michaelg9/HiveMQACEextension"]
 image:https://codecov.io/gh/michaelg9/HiveMQACEextension/branch/master/graph/badge.svg["Coverage Status", link="https://codecov.io/gh/michaelg9/HiveMQACEextension"]
 
+== HiveMQ extension for ACE
+=== Overview
+This extension implements the mqtt-tls profile for ACE (Authorization and Authentication in Constrained Environments) described https://art.tools.ietf.org/html/draft-sengul-ace-mqtt-tls-profile-04[here].
+
+=== Constituents
+This extension has the following dependencies:
+
+- A modified version of the HiveMQ CE because currently the official broker doesn't expose the extended authentication features to extensions. There is an implementation https://github.com/michaelg9/hivemq-community-edition[here]
+- A fully v5 compliant MQTT client that supports ACE, which can be found https://github.com/michaelg9/HiveACEclient[here]
+- An ACE authorization server running OAuth2, which can be found https://github.com/nominetresearch/ace-mqtt-mosquitto[here]
+
+=== Build Instructions
+
+Coming soon
