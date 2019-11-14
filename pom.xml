@@ -35,22 +35,32 @@
         <source.document.name>README.adoc</source.document.name>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>my-local-repo</id>
+            <url>file://${basedir}/maven-repo</url>
+        </repository>
+    </repositories>
+
     <dependencies>
+        <!--  BEGIN: OVERWRITE SDK INTERFACES      -->
         <dependency>
             <groupId>com.hivemq</groupId>
-            <artifactId>hivemq-extension-sdk</artifactId>
+            <artifactId>hivemq-extension-sdk-mod</artifactId>
             <version>4.2.0</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-api -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.29</version>
+        </dependency>
+        <!--  END: OVERWRITE SDK INTERFACES      -->
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>RELEASE</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.10.0.pr3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
