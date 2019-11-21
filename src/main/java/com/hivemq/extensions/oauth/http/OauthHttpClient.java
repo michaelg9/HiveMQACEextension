@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.exceptions.RSUnauthenticatedException;
+import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.io.IOException;
@@ -33,11 +34,11 @@ public class OauthHttpClient {
         endpointRetriever = new EndpointRetriever(protocol, OauthServerAddress, OauthServerPort);
     }
 
-    public OauthHttpClient() {
-        endpointRetriever = new EndpointRetriever("http", "127.0.0.1", "3001");
+    public OauthHttpClient() throws IOException {
+        endpointRetriever = new EndpointRetriever("http", ServerConfig.getConfig().getAsServerIP(), ServerConfig.getConfig().getAsServerPort());
     }
 
-    public @NotNull IntrospectionResponse tokenIntrospectionRequest(@NotNull String authorizationHeader,
+    public @NotNull IntrospectionResponse tokenIntrospectionRequest(@NotNull byte[] authorizationHeader,
                                                              @NotNull String token)
             throws ASUnreachableException {
         Map<String, String> body = new HashMap<>(1);
@@ -45,10 +46,10 @@ public class OauthHttpClient {
         return this.tokenIntrospectionRequest(authorizationHeader, body);
     }
 
-    public @NotNull IntrospectionResponse tokenIntrospectionRequest(@NotNull String authorizationHeader,
+    public @NotNull IntrospectionResponse tokenIntrospectionRequest(@NotNull byte[] authorizationHeader,
                                                                      @NotNull Map<String, String> body)
             throws ASUnreachableException {
-        String encodedAuth = Base64.getEncoder().encodeToString((authorizationHeader).getBytes());
+        String encodedAuth = Base64.getEncoder().encodeToString(authorizationHeader);
         String stringifiedBody;
         try {
             stringifiedBody = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(body);

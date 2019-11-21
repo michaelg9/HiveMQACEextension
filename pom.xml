@@ -35,19 +35,14 @@
         <source.document.name>README.adoc</source.document.name>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>my-local-repo</id>
-            <url>file://${basedir}/maven-repo</url>
-        </repository>
-    </repositories>
-
     <dependencies>
         <!--  BEGIN: OVERWRITE SDK INTERFACES      -->
         <dependency>
             <groupId>com.hivemq</groupId>
             <artifactId>hivemq-extension-sdk-mod</artifactId>
             <version>4.2.0</version>
+            <scope>system</scope>
+            <systemPath>${basedir}/maven-repo/hivemq-extension-sdk-4.2.0-SNAPSHOT.jar</systemPath>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-api -->
         <dependency>

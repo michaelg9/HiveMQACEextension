@@ -1,7 +1,5 @@
 package com.hivemq.extensions.oauth.crypto;
 
-import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
-
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;

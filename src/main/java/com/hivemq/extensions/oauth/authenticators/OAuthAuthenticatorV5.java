@@ -11,9 +11,10 @@ import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.http.OauthHttpClient;
 import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.Constants;
+import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
 import java.nio.charset.MalformedInputException;
 import java.util.Optional;
 import java.util.Random;
@@ -33,16 +34,22 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAIL
  */
 
 public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthenticator {
-    private final String auth = "p*6oso!eI3D2wshK:BByUwb7/FizssDcmI0AGVtIR8vvuZJR0pa7sWF7mDdw=";
-    private final OauthHttpClient oauthHttpClient = new OauthHttpClient();
-    private final String asServer = "127.0.0.1";
     private MACCalculator macCalculator;
-    byte[] nonce;
+    private byte[] nonce;
 
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
         if (!simpleAuthInput.getConnectPacket().getAuthenticationMethod().orElse("")
                 .equalsIgnoreCase(Constants.ACE)) {
             simpleAuthOutput.nextExtensionOrDefault();
+            return;
+        }
+        final String asServer;
+        final byte[] clientSecret;
+        try {
+            asServer = ServerConfig.getConfig().getAsServerIP();
+            clientSecret = ServerConfig.getConfig().getClientSecrets();
+        } catch (IOException e) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
             return;
         }
         if (simpleAuthInput.getConnectPacket().getAuthenticationData().isEmpty()) {
@@ -61,8 +68,9 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthen
         }
         IntrospectionResponse introspectionResponse;
         try {
-            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(auth, token);
-        } catch (ASUnreachableException e) {
+            OauthHttpClient oauthHttpClient = new OauthHttpClient();
+            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(clientSecret, token);
+        } catch (ASUnreachableException|IOException e) {
             e.printStackTrace();
             simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
             return;

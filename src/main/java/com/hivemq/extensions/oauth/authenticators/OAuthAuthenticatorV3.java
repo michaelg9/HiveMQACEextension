@@ -9,9 +9,11 @@ import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.utils.Constants;
 import com.hivemq.extensions.oauth.http.OauthHttpClient;
+import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.StringUtils;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
@@ -26,8 +28,6 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME
  */
 
 public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
-    private final String auth = "p*6oso!eI3D2wshK:BByUwb7/FizssDcmI0AGVtIR8vvuZJR0pa7sWF7mDdw=";
-    private final OauthHttpClient oauthHttpClient = new OauthHttpClient();
 
     @Override
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput,
@@ -46,8 +46,9 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
         }
         IntrospectionResponse introspectionResponse;
         try {
-            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(auth, token);
-        } catch (ASUnreachableException e) {
+            final OauthHttpClient oauthHttpClient = new OauthHttpClient();
+            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(ServerConfig.getConfig().getClientSecrets(), token);
+        } catch (ASUnreachableException|IOException e) {
             e.printStackTrace();
             simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
             return;
