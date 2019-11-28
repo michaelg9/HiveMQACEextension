@@ -7,7 +7,6 @@ import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
 import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
 import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
-import com.hivemq.extensions.oauth.utils.Constants;
 import com.hivemq.extensions.oauth.http.OauthHttpClient;
 import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.StringUtils;
@@ -32,15 +31,10 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
     @Override
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput,
                           @NotNull SimpleAuthOutput simpleAuthOutput) {
-        if (!simpleAuthInput.getConnectPacket().getAuthenticationMethod().orElse("")
-                .equalsIgnoreCase(Constants.ACE)) {
-            simpleAuthOutput.nextExtensionOrDefault();
-            return;
-        }
         String token = simpleAuthInput.getConnectPacket().getUserName().orElse("");
-        byte[] mac = simpleAuthInput.getConnectPacket().getPassword().orElse(ByteBuffer.allocate(0)).array();
+        ByteBuffer mac = simpleAuthInput.getConnectPacket().getPassword().orElse(ByteBuffer.allocate(0));
 
-        if (StringUtils.isEmpty(token) || mac.length == 0) {
+        if (StringUtils.isEmpty(token) || mac.remaining() == 0) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, USERNAME_PASSWORD_MISSING);
             return;
         }
@@ -61,7 +55,10 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
                 introspectionResponse.getCnf().getJwk().getK(),
                 token,
                 introspectionResponse.getCnf().getJwk().getAlg());
-        boolean isValidPOP = macCalculator.validatePOP(mac, token.getBytes());
+        short passwordLength = mac.getShort();
+        byte[] password = new byte[passwordLength];
+        mac.get(password);
+        boolean isValidPOP = macCalculator.validatePOP(password, token.getBytes());
         if (!isValidPOP) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         } else {

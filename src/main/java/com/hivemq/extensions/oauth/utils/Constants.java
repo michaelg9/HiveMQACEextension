@@ -1,7 +1,7 @@
 package com.hivemq.extensions.oauth.utils;
 
 public final class Constants {
-    public static final String ACE = "ACE";
+    public static final String ACE = "ace";
     public static final String CONTENT_TYPE = "Content-Type";
     public static final String CONTENT_TYPE_APP_JSON = "application/json";
     public static final String AUTHORIZATION_HEADER = "Authorization";

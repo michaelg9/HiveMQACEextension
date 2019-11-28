@@ -53,7 +53,9 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthen
             return;
         }
         if (simpleAuthInput.getConnectPacket().getAuthenticationData().isEmpty()) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.USE_ANOTHER_SERVER, asServer);
+            //TODO: parameter names? cnonce use?
+            simpleAuthOutput.getOutboundUserProperties().addUserProperty("AS", asServer);
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.USE_ANOTHER_SERVER, "Authentication token from provided server expected.");
             return;
         }
         // retrieve token and pop from authentication data

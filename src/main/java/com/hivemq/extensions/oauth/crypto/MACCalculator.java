@@ -29,7 +29,7 @@ public class MACCalculator {
         return Arrays.equals(mac, compute_hmac(plain));
     }
 
-    byte[] compute_hmac(final byte[] content) {
+    private byte[] compute_hmac(final byte[] content) {
         final byte[] byteKey = key.getBytes(StandardCharsets.UTF_8);
         try {
             final Mac sha512_HMAC = Mac.getInstance(algorithm);
