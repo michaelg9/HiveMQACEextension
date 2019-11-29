@@ -56,6 +56,10 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
                 token,
                 introspectionResponse.getCnf().getJwk().getAlg());
         short passwordLength = mac.getShort();
+        if (mac.remaining() < passwordLength) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.PAYLOAD_FORMAT_INVALID, "POP doesn't match specified length");
+            return;
+        }
         byte[] password = new byte[passwordLength];
         mac.get(password);
         boolean isValidPOP = macCalculator.validatePOP(password, token.getBytes());
