@@ -2,7 +2,6 @@ package com.hivemq.extensions.oauth.crypto;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -11,47 +10,30 @@ import java.util.Arrays;
  * TODO:
  * compute MAC over whole Connect
  * condition on algorithm
- * define separator
  */
 public class MACCalculator {
     private final String algorithm = "HmacSHA256";
-    private final String key;
-    private final String token;
+    private final byte[] key;
 
-    public MACCalculator(final String key, final String token, String algorithm) {
+    public MACCalculator(final byte[] key, String algorithm) {
         this.key = key;
-        this.token = token;
     }
 
-    public boolean validatePOP(
-                        byte[] mac,
-                        byte[] plain) {
-        return Arrays.equals(mac, compute_hmac(plain));
+    public boolean isMacValid(byte[] mac, byte[] nonce) {
+        return Arrays.equals(mac, compute_hmac(nonce));
     }
 
-    private byte[] compute_hmac(final byte[] content) {
-        final byte[] byteKey = key.getBytes(StandardCharsets.UTF_8);
+    public byte[] compute_hmac(final byte[] nonce) {
         try {
             final Mac sha512_HMAC = Mac.getInstance(algorithm);
-            final SecretKeySpec keySpec = new SecretKeySpec(byteKey, algorithm);
+            final SecretKeySpec keySpec = new SecretKeySpec(key, algorithm);
             sha512_HMAC.init(keySpec);
-            return bytesToHex(sha512_HMAC.doFinal(content)).getBytes();
+            return sha512_HMAC.doFinal(nonce);
         } catch (final NoSuchAlgorithmException | InvalidKeyException e) {
             // should never happen for the case of HmacSHA1 / HmacSHA256
             e.printStackTrace();
             throw new RuntimeException(e);
         }
-    }
-
-    private String bytesToHex(final byte[] bytes) {
-        final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
-        final char[] hexChars = new char[bytes.length * 2];
-        for (int j = 0; j < bytes.length; j++) {
-            final int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
-            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
-        }
-        return new String(hexChars);
     }
 
 }

@@ -15,6 +15,8 @@ import java.net.http.HttpResponse;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static com.hivemq.extensions.oauth.utils.Constants.AUTHORIZATION_HEADER;
 import static com.hivemq.extensions.oauth.utils.Constants.CONTENT_TYPE;
@@ -22,6 +24,7 @@ import static com.hivemq.extensions.oauth.utils.Constants.CONTENT_TYPE_APP_JSON;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
 
 public class OauthHttpClient {
+    private final static Logger LOGGER = Logger.getLogger(OauthHttpClient.class.getName());
     @NotNull
     private EndpointRetriever endpointRetriever;
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -63,6 +66,7 @@ public class OauthHttpClient {
                 .POST(HttpRequest.BodyPublishers.ofString(stringifiedBody))
                 .setHeader(AUTHORIZATION_HEADER, "Basic " + encodedAuth)
                 .build();
+        LOGGER.log(Level.FINE, String.format("Request:\t%s\nHeaders:\t%s\nBody:\t%s", request.toString(), request.headers(), stringifiedBody));
         HttpResponse<String> response;
         try {
             response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -70,6 +74,7 @@ public class OauthHttpClient {
             // unable to contact AS server
             throw new ASUnreachableException(AUTH_SERVER_UNAVAILABLE);
         }
+        LOGGER.log(Level.FINE, String.format("Request:\t%s\nHeaders:\t%s\nBody:\t%s", response.toString(), response.headers(), response.body()));
         if (response.statusCode() != 200) {
             // token introspection failed, invalid token
             throw new RSUnauthenticatedException();

@@ -15,23 +15,15 @@ import java.util.Map;
  */
 
 public class OAuthAuthenticationProvider implements AuthenticatorProvider {
-    private Map<String, OAuthAuthenticatorV5> authAuthenticatorV5Map = new HashMap<>();
+    private final OAuthAuthenticatorV5 authAuthenticatorV5 = new OAuthAuthenticatorV5();
+    private final OAuthAuthenticatorV3 authAuthenticatorV3 = new OAuthAuthenticatorV3();
 
     @Override
     public @NotNull Authenticator getAuthenticator(@NotNull AuthenticatorProviderInput authenticatorProviderInput) {
         if (authenticatorProviderInput.getConnectionInformation().getMqttVersion().equals(MqttVersion.V_5)) {
-            String clientID = authenticatorProviderInput.getClientInformation().getClientId();
-            OAuthAuthenticatorV5 auth;
-            if (authAuthenticatorV5Map.containsKey(clientID)) {
-                auth = authAuthenticatorV5Map.remove(clientID);
-            } else {
-                auth = new OAuthAuthenticatorV5();
-                authAuthenticatorV5Map.put(clientID, auth);
-            }
-            return auth;
+            return authAuthenticatorV5;
         } else {
-            return new OAuthAuthenticatorV3();
+            return authAuthenticatorV3;
         }
     }
-
 }

@@ -8,17 +8,19 @@ import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
 import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.http.OauthHttpClient;
+import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.ServerConfig;
-import com.hivemq.extensions.oauth.utils.StringUtils;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME_PASSWORD_MISSING;
+import static com.hivemq.extensions.oauth.utils.StringUtils.hexStringToByteArray;
 
 /**
  * @author Michael Michaelides
@@ -27,21 +29,25 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME
  */
 
 public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
+    private final static Logger LOGGER = Logger.getLogger(OAuthAuthenticatorV3.class.getName());
 
     @Override
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput,
                           @NotNull SimpleAuthOutput simpleAuthOutput) {
-        String token = simpleAuthInput.getConnectPacket().getUserName().orElse("");
-        ByteBuffer mac = simpleAuthInput.getConnectPacket().getPassword().orElse(ByteBuffer.allocate(0));
-
-        if (StringUtils.isEmpty(token) || mac.remaining() == 0) {
+        LOGGER.log(Level.FINE, String.format("Received CONNECT:\t%s", simpleAuthInput.getConnectPacket()));
+        AuthData authData = new AuthData();
+        if (simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
+            authData.setToken(simpleAuthInput.getConnectPacket().getUserName().get());
+            authData.setPop(simpleAuthInput.getConnectPacket().getPassword().get());
+        }
+        if (authData.getToken().isEmpty() || authData.getPOP().isEmpty()) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, USERNAME_PASSWORD_MISSING);
             return;
         }
         IntrospectionResponse introspectionResponse;
         try {
             final OauthHttpClient oauthHttpClient = new OauthHttpClient();
-            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(ServerConfig.getConfig().getClientSecrets(), token);
+            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(ServerConfig.getConfig().getClientSecrets(), authData.getToken().get());
         } catch (ASUnreachableException|IOException e) {
             e.printStackTrace();
             simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
@@ -52,22 +58,13 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
             return;
         }
         MACCalculator macCalculator = new MACCalculator(
-                introspectionResponse.getCnf().getJwk().getK(),
-                token,
+                hexStringToByteArray(introspectionResponse.getCnf().getJwk().getK()),
                 introspectionResponse.getCnf().getJwk().getAlg());
-        short passwordLength = mac.getShort();
-        if (mac.remaining() < passwordLength) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.PAYLOAD_FORMAT_INVALID, "POP doesn't match specified length");
-            return;
-        }
-        byte[] password = new byte[passwordLength];
-        mac.get(password);
-        boolean isValidPOP = macCalculator.validatePOP(password, token.getBytes());
+        boolean isValidPOP = macCalculator.isMacValid(authData.getPOP().get(), authData.getToken().get().getBytes());
         if (!isValidPOP) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         } else {
             simpleAuthOutput.authenticateSuccessfully();
         }
     }
-
 }
