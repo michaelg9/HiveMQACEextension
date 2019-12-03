@@ -4,6 +4,7 @@ import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extension.sdk.api.annotations.Nullable;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 
@@ -20,8 +21,7 @@ public class AuthData {
     public void setToken(@NotNull ByteBuffer buf) {
         byte[] tokenBytes = readValue(buf);
         if (tokenBytes != null) {
-            //TODO: encoding?
-            token = new String(tokenBytes);
+            token = new String(tokenBytes, StandardCharsets.UTF_8);
         } else {
             token = null;
         }

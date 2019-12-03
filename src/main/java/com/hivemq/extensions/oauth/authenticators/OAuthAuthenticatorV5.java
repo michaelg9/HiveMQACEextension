@@ -15,7 +15,6 @@ import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +26,6 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SER
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
 import static com.hivemq.extensions.oauth.utils.StringUtils.bytesToHex;
-import static com.hivemq.extensions.oauth.utils.StringUtils.hexStringToByteArray;
 
 /**
  * @author Michael Michaelides
@@ -89,7 +87,7 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthen
         }
         boolean isValidPOP = false;
         MACCalculator macCalculator = new MACCalculator(
-                hexStringToByteArray(introspectionResponse.getCnf().getJwk().getK()),
+                introspectionResponse.getCnf().getJwk().getK(),
                 introspectionResponse.getCnf().getJwk().getAlg());
         if (authData.getPOP().isPresent()) {
             isValidPOP = macCalculator.isMacValid(authData.getPOP().get(), authData.getTokenAsBytes().get());

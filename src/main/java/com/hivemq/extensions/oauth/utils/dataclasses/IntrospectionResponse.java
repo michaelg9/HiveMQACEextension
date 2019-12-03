@@ -48,7 +48,7 @@ public final class IntrospectionResponse {
     public static class JWK {
         private String alg;
         private String kty;
-        private String k;
+        private byte[] k;
 
         public String getAlg() {
             return alg;
@@ -58,7 +58,7 @@ public final class IntrospectionResponse {
             return kty;
         }
 
-        public String getK() {
+        public byte[] getK() {
             return k;
         }
 

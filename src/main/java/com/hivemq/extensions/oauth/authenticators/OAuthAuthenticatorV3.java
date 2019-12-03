@@ -58,7 +58,7 @@ public class OAuthAuthenticatorV3 implements SimpleAuthenticator {
             return;
         }
         MACCalculator macCalculator = new MACCalculator(
-                hexStringToByteArray(introspectionResponse.getCnf().getJwk().getK()),
+                introspectionResponse.getCnf().getJwk().getK(),
                 introspectionResponse.getCnf().getJwk().getAlg());
         boolean isValidPOP = macCalculator.isMacValid(authData.getPOP().get(), authData.getToken().get().getBytes());
         if (!isValidPOP) {
