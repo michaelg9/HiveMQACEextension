@@ -6,12 +6,9 @@ import com.hivemq.extension.sdk.api.auth.parameter.AuthenticatorProviderInput;
 import com.hivemq.extension.sdk.api.packets.general.MqttVersion;
 import com.hivemq.extension.sdk.api.services.auth.provider.AuthenticatorProvider;
 
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * @author Michael Michaelides
- * Todo: thread safe?
  */
 
 public class OAuthAuthenticationProvider implements AuthenticatorProvider {

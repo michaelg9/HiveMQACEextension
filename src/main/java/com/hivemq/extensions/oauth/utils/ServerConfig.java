@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.util.Properties;
 
 public final class ServerConfig {
-    private static ServerConfig config = null;
     private final String asServerIP;
     private final String asServerPort;
     private final String clientID;
@@ -29,16 +28,13 @@ public final class ServerConfig {
         return (clientID + ":" + clientSecret).getBytes();
     }
 
-    public static ServerConfig getConfig() throws IOException {
-        if (config == null) {
-            Properties properties = readConfig();
-            config = new ServerConfig(properties.getProperty("ASServerIP"), properties.getProperty("ASServerPort"),
-                    properties.getProperty("ClientID"), properties.getProperty("ClientSecret"));
-        }
-        return config;
+    public static ServerConfig getConfig() {
+        Properties properties = readConfig();
+        return new ServerConfig(properties.getProperty("ASServerIP"), properties.getProperty("ASServerPort"),
+                properties.getProperty("ClientID"), properties.getProperty("ClientSecret"));
     }
 
-    private static Properties readConfig() throws IOException {
+    private static Properties readConfig() {
         try (final InputStream input = ServerConfig.class.getClassLoader().getResourceAsStream("config.properties")) {
             final Properties prop = new Properties();
             if (input == null) {
@@ -46,6 +42,9 @@ public final class ServerConfig {
             }
             prop.load(input);
             return prop;
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 }

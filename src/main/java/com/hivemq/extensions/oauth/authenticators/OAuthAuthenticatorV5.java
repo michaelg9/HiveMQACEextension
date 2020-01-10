@@ -1,29 +1,26 @@
 package com.hivemq.extensions.oauth.authenticators;
 
 import com.hivemq.extension.sdk.api.annotations.NotNull;
+import com.hivemq.extension.sdk.api.annotations.Nullable;
 import com.hivemq.extension.sdk.api.auth.ExtendedAuthenticator;
 import com.hivemq.extension.sdk.api.auth.SimpleAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthInput;
 import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
 import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
+import com.hivemq.extensions.oauth.OAuthExtMain;
 import com.hivemq.extensions.oauth.crypto.MACCalculator;
-import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
-import com.hivemq.extensions.oauth.http.OauthHttpClient;
 import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.Constants;
-import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
+import com.hivemq.extensions.oauth.utils.dataclasses.PendingAuthenticationDetails;
+import com.nimbusds.jose.JOSEException;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
-import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
 import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
 import static com.hivemq.extensions.oauth.utils.StringUtils.bytesToHex;
 
@@ -33,77 +30,84 @@ import static com.hivemq.extensions.oauth.utils.StringUtils.bytesToHex;
  * Supports v5 ACE authentication
  */
 
-public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthenticator {
-    private final static Logger LOGGER = Logger.getLogger(OAuthAuthenticatorV5.class.getName());
+public class OAuthAuthenticatorV5 extends OAuthAuthenticator implements SimpleAuthenticator, ExtendedAuthenticator {
+    private Map<String, PendingAuthenticationDetails> nonceMap = new ConcurrentHashMap<>();
 
-    private Map<String, AuthData> authDataMap = new HashMap<>();
-
-    public void onConnect(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
-        LOGGER.log(Level.FINE, String.format("Received client CONNECT:\t%s", simpleAuthInput.getConnectPacket()));
-        if (!simpleAuthInput.getConnectPacket().getAuthenticationMethod().orElse("")
-                .equalsIgnoreCase(Constants.ACE)) {
+    private boolean isInputValid(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
+        boolean isInputValid = false;
+        if (!isAuthenticationMethodValid(simpleAuthInput)) {
             simpleAuthOutput.nextExtensionOrDefault();
-            return;
         }
-        final String asServer;
-        final byte[] clientSecret;
-        try {
-            asServer = ServerConfig.getConfig().getAsServerIP();
-            clientSecret = ServerConfig.getConfig().getClientSecrets();
-        } catch (IOException e) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
-            return;
-        }
-        // check for v5 client authenticating with username and password
-        if (simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
-            new OAuthAuthenticatorV3().onConnect(simpleAuthInput, simpleAuthOutput);
-            return;
-        }
-        if (simpleAuthInput.getConnectPacket().getAuthenticationData().isEmpty()) {
+        if (simpleAuthInput.getConnectPacket().getAuthenticationData().isEmpty() &&
+                simpleAuthInput.getConnectPacket().getUserName().isEmpty() &&
+                simpleAuthInput.getConnectPacket().getPassword().isEmpty()) {
+            // missing authentication data, AS server discovery
+            final String asServer = OAuthExtMain.getServerConfig().getAsServerIP();
             //TODO: parameter names? cnonce use?
             simpleAuthOutput.getOutboundUserProperties().addUserProperty("AS", asServer);
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, "Authentication token from provided server expected.");
-            return;
         }
-        // retrieve token and pop from authentication data
-        AuthData authData = new AuthData();
-        authData.setTokenAndPop(simpleAuthInput.getConnectPacket().getAuthenticationData().get());
-        if (authData.getToken().isEmpty()) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.PROTOCOL_ERROR, "Missing or invalid token");
+        if ((simpleAuthInput.getConnectPacket().getAuthenticationData().isPresent() &&
+                simpleAuthInput.getConnectPacket().getAuthenticationData().get().remaining() > 2) ||
+                simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
+            isInputValid = true;
         }
+        return isInputValid;
+    }
 
-        IntrospectionResponse introspectionResponse;
+    @Override
+    @Nullable AuthData parseAuthData(@NotNull SimpleAuthInput simpleAuthInput,
+                                     @NotNull SimpleAuthOutput simpleAuthOutput) {
+        if (!isInputValid(simpleAuthInput, simpleAuthOutput)) {
+            return null;
+        }
+        AuthData authData = null;
+        if (simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
+            // v5 client authenticating with username and password
+            authData = new AuthData();
+            authData.setToken(simpleAuthInput.getConnectPacket().getUserName().get());
+            authData.setPop(simpleAuthInput.getConnectPacket().getPassword().get());
+        } else if (simpleAuthInput.getConnectPacket().getAuthenticationData().isPresent() &&
+                simpleAuthInput.getConnectPacket().getAuthenticationData().get().remaining() > 2) {
+            // authenticating with extended method, retrieve token and maybe pop from authentication data
+            authData = new AuthData();
+            authData.setTokenAndPop(simpleAuthInput.getConnectPacket().getAuthenticationData().get());
+        }
+        if (authData != null && authData.getToken().isEmpty()) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.PROTOCOL_ERROR, "Missing or invalid token");
+            authData = null;
+        }
+        return authData;
+    }
+
+    @Override
+    void proceedToChallenge(@NotNull IntrospectionResponse introspectionResponse,
+                            @NotNull MACCalculator macCalculator,
+                            @NotNull SimpleAuthOutput simpleAuthOutput) {
+        final byte[] nonce = generateChallengeString();
+        final String clientID = introspectionResponse.getSub();
+        byte[] expectedPOP;
         try {
-            OauthHttpClient oauthHttpClient = new OauthHttpClient();
-            introspectionResponse = oauthHttpClient.tokenIntrospectionRequest(clientSecret, authData.getToken().get());
-        } catch (ASUnreachableException | IOException e) {
+            expectedPOP = macCalculator.signNonce(nonce);
+        } catch (JOSEException e) {
             e.printStackTrace();
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.IMPLEMENTATION_SPECIFIC_ERROR, "Algorithm not supported");
             return;
         }
-        if (!introspectionResponse.isActive()) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, EXPIRED_TOKEN);
-            return;
-        }
-        boolean isValidPOP = false;
-        MACCalculator macCalculator = new MACCalculator(
-                introspectionResponse.getCnf().getJwk().getK(),
-                introspectionResponse.getCnf().getJwk().getAlg());
-        if (authData.getPOP().isPresent()) {
-            isValidPOP = macCalculator.isMacValid(authData.getPOP().get(), authData.getTokenAsBytes().get());
-        } else {
-            byte[] nonce = new byte[32];
-            new Random().nextBytes(nonce);
-            authData.setPop(macCalculator.compute_hmac(nonce));
-            authDataMap.put(simpleAuthInput.getConnectPacket().getClientId(), authData);
-            simpleAuthOutput.continueToAuth(nonce);
-            return;
-        }
-        if (!isValidPOP) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
-        } else {
-            simpleAuthOutput.authenticateSuccessfully();
-        }
+        PendingAuthenticationDetails details = new PendingAuthenticationDetails(introspectionResponse, expectedPOP);
+        nonceMap.put(clientID, details);
+        simpleAuthOutput.continueToAuth(nonce);
+    }
+
+    private boolean isAuthenticationMethodValid(@NotNull SimpleAuthInput simpleAuthInput) {
+        return simpleAuthInput.getConnectPacket().getAuthenticationMethod().isPresent() &&
+                Constants.ACE.equalsIgnoreCase(simpleAuthInput.getConnectPacket().getAuthenticationMethod().get());
+    }
+
+    private byte[] generateChallengeString() {
+        byte[] challenge = new byte[32];
+        new Random().nextBytes(challenge);
+        return challenge;
     }
 
     public void onAUTH(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
@@ -112,11 +116,11 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthen
             simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_AUTHENTICATION_METHOD, "Should be ACE");
             return;
         }
-        if (!authDataMap.containsKey(simpleAuthInput.getConnectPacket().getClientId())) {
+        final String clientID = simpleAuthInput.getConnectPacket().getClientId();
+        if (!nonceMap.containsKey(clientID)) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.PROTOCOL_ERROR, "Need to send CONNECT packet first");
             return;
         }
-        AuthData authData = authDataMap.remove(simpleAuthInput.getConnectPacket().getClientId());
         LOGGER.log(Level.FINE, String.format("Received client AUTH:\t%s\n" +
                         "reasonCode:\t%s\n" +
                         "reasonString:\t%s\n" +
@@ -128,8 +132,9 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthen
                 simpleAuthInput.getAuthPacket().getAuthenticationMethod(),
                 bytesToHex(simpleAuthInput.getAuthPacket().getAuthenticationData())));
         simpleAuthInput.getAuthPacket().getAuthenticationData().rewind();
-
-        byte[] expectedPOP = authData.getPOP().get();
+        final PendingAuthenticationDetails details = nonceMap.remove(clientID);
+        byte[] expectedPOP = details.getExpectedPOP();
+        AuthData authData = new AuthData();
         authData.setPop(simpleAuthInput.getAuthPacket().getAuthenticationData());
         if (authData.getPOP().isEmpty()) {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.PROTOCOL_ERROR, "POP not found or invalid format.");
@@ -137,7 +142,7 @@ public class OAuthAuthenticatorV5 implements SimpleAuthenticator, ExtendedAuthen
         }
         boolean isValidPOP = Arrays.equals(authData.getPOP().get(), expectedPOP);
         if (isValidPOP) {
-            simpleAuthOutput.authenticateSuccessfully();
+            authenticateClient(simpleAuthOutput, details.getIntrospectionResponse());
         } else {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         }

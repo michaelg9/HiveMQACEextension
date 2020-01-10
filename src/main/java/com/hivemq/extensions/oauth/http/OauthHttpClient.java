@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.exceptions.RSUnauthenticatedException;
-import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.io.IOException;
@@ -33,12 +32,12 @@ public class OauthHttpClient {
             .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
             .build();
 
-    public OauthHttpClient(String protocol, String OauthServerAddress, String OauthServerPort) {
-        endpointRetriever = new EndpointRetriever(protocol, OauthServerAddress, OauthServerPort);
+    public OauthHttpClient(String OauthServerAddress, String OauthServerPort) {
+        this("http", OauthServerAddress, OauthServerPort);
     }
 
-    public OauthHttpClient() throws IOException {
-        endpointRetriever = new EndpointRetriever("http", ServerConfig.getConfig().getAsServerIP(), ServerConfig.getConfig().getAsServerPort());
+    public OauthHttpClient(String protocol, String OauthServerAddress, String OauthServerPort) {
+        endpointRetriever = new EndpointRetriever(protocol, OauthServerAddress, OauthServerPort);
     }
 
     public @NotNull IntrospectionResponse tokenIntrospectionRequest(@NotNull byte[] authorizationHeader,

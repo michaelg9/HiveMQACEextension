@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2018 dc-square GmbH
  *
@@ -26,8 +25,11 @@ import com.hivemq.extension.sdk.api.parameter.ExtensionStopInput;
 import com.hivemq.extension.sdk.api.parameter.ExtensionStopOutput;
 import com.hivemq.extension.sdk.api.services.Services;
 import com.hivemq.extensions.oauth.authenticators.OAuthAuthenticationProvider;
+import com.hivemq.extensions.oauth.utils.ServerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 
 /**
  * This is the main class of the extension,
@@ -38,8 +40,10 @@ import org.slf4j.LoggerFactory;
  * @since 4.0.0
  */
 public class OAuthExtMain implements ExtensionMain {
-
     private static final @NotNull Logger log = LoggerFactory.getLogger(OAuthExtMain.class);
+    private static ServerConfig serverConfig = ServerConfig.getConfig();
+
+    public OAuthExtMain() throws IOException {}
 
     @Override
     public void extensionStart(final @NotNull ExtensionStartInput extensionStartInput, final @NotNull ExtensionStartOutput extensionStartOutput) {
@@ -48,10 +52,11 @@ public class OAuthExtMain implements ExtensionMain {
 
     @Override
     public void extensionStop(final @NotNull ExtensionStopInput extensionStopInput, final @NotNull ExtensionStopOutput extensionStopOutput) {
-
         final ExtensionInformation extensionInformation = extensionStopInput.getExtensionInformation();
         log.info("Stopped " + extensionInformation.getName() + ":" + extensionInformation.getVersion());
-
     }
 
+    public static ServerConfig getServerConfig() {
+        return serverConfig;
+    }
 }
