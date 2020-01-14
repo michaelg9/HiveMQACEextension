@@ -16,6 +16,7 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME
  * @author Michael Michaelides
  * OAuth2 authenticator for ACE.
  * Supports v3.1.1 ACE authentication
+ * TODO: is input valid?
  */
 
 public class OAuthAuthenticatorV3 extends OAuthAuthenticator implements SimpleAuthenticator {

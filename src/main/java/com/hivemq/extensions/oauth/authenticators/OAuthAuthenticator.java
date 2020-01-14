@@ -28,6 +28,9 @@ public abstract class OAuthAuthenticator implements SimpleAuthenticator {
 
     public void onConnect(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
         LOGGER.log(Level.FINE, String.format("Received client CONNECT:\t%s", simpleAuthInput.getConnectPacket()));
+        if (!isInputValid(simpleAuthInput, simpleAuthOutput)) {
+            return;
+        }
         AuthData authData = parseAuthData(simpleAuthInput, simpleAuthOutput);
         if (authData == null) return;
         IntrospectionResponse introspectionResponse;
@@ -55,6 +58,15 @@ public abstract class OAuthAuthenticator implements SimpleAuthenticator {
         } else {
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
         }
+    }
+
+    boolean isInputValid(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
+        boolean result = true;
+        if (!simpleAuthInput.getConnectPacket().getCleanStart()) {
+            result = false;
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.PAYLOAD_FORMAT_INVALID, "Expecting clean start flag true");
+        }
+        return result;
     }
 
     abstract @Nullable AuthData parseAuthData(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput);

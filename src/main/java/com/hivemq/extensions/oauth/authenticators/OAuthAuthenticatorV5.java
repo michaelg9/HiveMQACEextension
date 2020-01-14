@@ -33,11 +33,20 @@ import static com.hivemq.extensions.oauth.utils.StringUtils.bytesToHex;
 public class OAuthAuthenticatorV5 extends OAuthAuthenticator implements SimpleAuthenticator, ExtendedAuthenticator {
     private Map<String, PendingAuthenticationDetails> nonceMap = new ConcurrentHashMap<>();
 
-    private boolean isInputValid(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
-        boolean isInputValid = false;
+    @Override
+    boolean isInputValid(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
+        if (!super.isInputValid(simpleAuthInput, simpleAuthOutput)) {
+            return false;
+        }
+        if (simpleAuthInput.getConnectPacket().getSessionExpiryInterval() != 0) {
+            simpleAuthOutput.failAuthentication(ConnackReasonCode.PAYLOAD_FORMAT_INVALID, "Session expiry interval should be 0");
+            return false;
+        }
         if (!isAuthenticationMethodValid(simpleAuthInput)) {
             simpleAuthOutput.nextExtensionOrDefault();
+            return false;
         }
+
         if (simpleAuthInput.getConnectPacket().getAuthenticationData().isEmpty() &&
                 simpleAuthInput.getConnectPacket().getUserName().isEmpty() &&
                 simpleAuthInput.getConnectPacket().getPassword().isEmpty()) {
@@ -46,21 +55,16 @@ public class OAuthAuthenticatorV5 extends OAuthAuthenticator implements SimpleAu
             //TODO: parameter names? cnonce use?
             simpleAuthOutput.getOutboundUserProperties().addUserProperty("AS", asServer);
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, "Authentication token from provided server expected.");
+            return false;
         }
-        if ((simpleAuthInput.getConnectPacket().getAuthenticationData().isPresent() &&
+        return (simpleAuthInput.getConnectPacket().getAuthenticationData().isPresent() &&
                 simpleAuthInput.getConnectPacket().getAuthenticationData().get().remaining() > 2) ||
-                simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
-            isInputValid = true;
-        }
-        return isInputValid;
+                simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent();
     }
 
     @Override
     @Nullable AuthData parseAuthData(@NotNull SimpleAuthInput simpleAuthInput,
                                      @NotNull SimpleAuthOutput simpleAuthOutput) {
-        if (!isInputValid(simpleAuthInput, simpleAuthOutput)) {
-            return null;
-        }
         AuthData authData = null;
         if (simpleAuthInput.getConnectPacket().getUserName().isPresent() && simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
             // v5 client authenticating with username and password
