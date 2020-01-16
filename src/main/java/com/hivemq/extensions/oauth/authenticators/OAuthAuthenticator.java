@@ -11,7 +11,7 @@ import com.hivemq.extensions.oauth.ClientRegistry;
 import com.hivemq.extensions.oauth.OAuthExtMain;
 import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
-import com.hivemq.extensions.oauth.http.OauthHttpClient;
+import com.hivemq.extensions.oauth.http.OauthHttpsClient;
 import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
@@ -83,8 +83,8 @@ public abstract class OAuthAuthenticator implements SimpleAuthenticator {
         final String asServer = OAuthExtMain.getServerConfig().getAsServerIP();
         final byte[] clientSecret = OAuthExtMain.getServerConfig().getClientSecrets();
         final String port = OAuthExtMain.getServerConfig().getAsServerPort();
-        OauthHttpClient oauthHttpClient = new OauthHttpClient(asServer, port);
-        return oauthHttpClient.tokenIntrospectionRequest(clientSecret, token);
+        OauthHttpsClient oauthHttpsClient = new OauthHttpsClient(asServer, port);
+        return oauthHttpsClient.tokenIntrospectionRequest(clientSecret, token);
     }
 
     void authenticateClient(@NotNull SimpleAuthOutput simpleAuthOutput, @NotNull final IntrospectionResponse introspectionResponse) {
