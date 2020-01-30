@@ -34,10 +34,6 @@ public class OauthHttpsClient {
     private final EndpointRetriever endpointRetriever;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OauthHttpsClient(String OauthServerAddress, String OauthServerPort) {
-        this("https", OauthServerAddress, OauthServerPort);
-    }
-
     public OauthHttpsClient(String protocol, String OauthServerAddress, String OauthServerPort) {
         endpointRetriever = new EndpointRetriever(protocol, OauthServerAddress, OauthServerPort);
     }
