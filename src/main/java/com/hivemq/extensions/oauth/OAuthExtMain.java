@@ -43,7 +43,7 @@ public class OAuthExtMain implements ExtensionMain {
     private static final @NotNull Logger log = LoggerFactory.getLogger(OAuthExtMain.class);
     private static ServerConfig serverConfig = ServerConfig.getConfig();
 
-    public OAuthExtMain() throws IOException {}
+    public OAuthExtMain() {}
 
     @Override
     public void extensionStart(final @NotNull ExtensionStartInput extensionStartInput, final @NotNull ExtensionStartOutput extensionStartOutput) {

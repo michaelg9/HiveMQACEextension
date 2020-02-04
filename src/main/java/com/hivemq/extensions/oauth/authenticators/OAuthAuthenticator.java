@@ -83,7 +83,8 @@ public abstract class OAuthAuthenticator implements SimpleAuthenticator {
         final String asServer = OAuthExtMain.getServerConfig().getAsServerIP();
         final byte[] clientSecret = OAuthExtMain.getServerConfig().getClientSecrets();
         final String port = OAuthExtMain.getServerConfig().getAsServerPort();
-        OauthHttpsClient oauthHttpsClient = new OauthHttpsClient(asServer, port);
+        final String protocol = OAuthExtMain.getServerConfig().getAsServerProtocol();
+        OauthHttpsClient oauthHttpsClient = new OauthHttpsClient(protocol, asServer, port);
         return oauthHttpsClient.tokenIntrospectionRequest(clientSecret, token);
     }
 

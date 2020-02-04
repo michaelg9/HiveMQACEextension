@@ -6,7 +6,6 @@ import com.hivemq.extension.sdk.api.auth.parameter.AuthenticatorProviderInput;
 import com.hivemq.extension.sdk.api.packets.general.MqttVersion;
 import com.hivemq.extension.sdk.api.services.auth.provider.AuthenticatorProvider;
 
-
 /**
  * @author Michael Michaelides
  */

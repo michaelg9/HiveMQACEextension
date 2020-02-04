@@ -15,6 +15,8 @@ import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 import com.hivemq.extensions.oauth.utils.dataclasses.PendingAuthenticationDetails;
 import com.nimbusds.jose.JOSEException;
 
+import java.net.URI;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
@@ -51,9 +53,10 @@ public class OAuthAuthenticatorV5 extends OAuthAuthenticator implements SimpleAu
                 simpleAuthInput.getConnectPacket().getUserName().isEmpty() &&
                 simpleAuthInput.getConnectPacket().getPassword().isEmpty()) {
             // missing authentication data, AS server discovery
-            final String asServer = OAuthExtMain.getServerConfig().getAsServerIP();
+            final URL asServerUri = OAuthExtMain.getServerConfig().getAsServerURI();
+            final String asServer = asServerUri == null ? "" : asServerUri.toString();
             //TODO: parameter names? cnonce use?
-            simpleAuthOutput.getOutboundUserProperties().addUserProperty("AS", asServer);
+            simpleAuthOutput.getOutboundUserProperties().addUserProperty("AS",  asServer);
             simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, "Authentication token from provided server expected.");
             return false;
         }
