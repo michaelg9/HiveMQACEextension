@@ -1,8 +1,10 @@
 FROM hivemq/hivemq-ce:snapshot
 
-COPY config.xml /opt/hivemq/conf/config.xml
+COPY config/broker/config.xml /opt/hivemq/conf/config.xml
 COPY /oauth-hivemq /opt/hivemq/extensions/oauth-hivemq
-COPY TLS /opt/TLS
+ENV BROKER_CONFIG_DIR /opt/config
+ENV HIVEMQ_ALLOW_ALL_CLIENTS "true"
+COPY config/broker /opt/config
 
 #tls mqtt & mqtts
 EXPOSE 8883

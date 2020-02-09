@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.exceptions.RSUnauthenticatedException;
+import com.hivemq.extensions.oauth.utils.dataclasses.ClientRegistrationRequest;
+import com.hivemq.extensions.oauth.utils.dataclasses.ClientRegistrationResponse;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import javax.net.ssl.HostnameVerifier;
@@ -36,6 +38,53 @@ public class OauthHttpsClient {
 
     public OauthHttpsClient(String protocol, String OauthServerAddress, String OauthServerPort) {
         endpointRetriever = new EndpointRetriever(protocol, OauthServerAddress, OauthServerPort);
+    }
+
+    @NotNull
+    public ClientRegistrationResponse registerClient(@NotNull final ClientRegistrationRequest requestBody) {
+        final String stringifiedBody;
+        try {
+            stringifiedBody = new ObjectMapper().writeValueAsString(requestBody);
+        } catch (final JsonProcessingException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+        final HttpsURLConnection con;
+        try {
+            con = getHttpsClient(
+                    endpointRetriever.getEndpoint(EndpointRetriever.ASEndpoint.CLIENT_REG),
+                    "POST",
+                    true);
+        } catch (ASUnreachableException e) {
+            throw new IllegalStateException("AS should be reachable from RS", e);
+        }
+        con.setDoOutput(true);
+        con.setDoInput(true);
+        con.setRequestProperty("Content-Type", "application/json");
+        LOGGER.log(
+                Level.FINE,
+                String.format("Request:\t%s\nHeaders:\t%s\nBody:\t%s", con.toString(), con.getRequestProperties(),
+                        stringifiedBody));
+        final String responseString;
+        try {
+            final StringBuilder response = new StringBuilder();
+            send(stringifiedBody, con);
+            final int responseCode = receive(con, response);
+            if ((responseCode / 100) != 2) throw new ASUnreachableException("AS returned error code "+ responseCode);
+            responseString = response.toString();
+        } catch (ASUnreachableException e) {
+            throw new IllegalStateException("AS should be reachable from RS", e);
+        } finally {
+            con.disconnect();
+        }
+
+        final ClientRegistrationResponse registrationResponse;
+        try {
+            registrationResponse = objectMapper.readValue(responseString, ClientRegistrationResponse.class);
+        } catch (final JsonProcessingException e) {
+            // Should never happen
+            throw new IllegalArgumentException("Failed to parse POST response", e);
+        }
+        return registrationResponse;
     }
 
     public @NotNull IntrospectionResponse tokenIntrospectionRequest(@NotNull byte[] authorizationHeader,

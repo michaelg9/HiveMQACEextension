@@ -18,7 +18,8 @@ public class EndpointRetriever {
     }
 
     public enum ASEndpoint {
-        TOKEN_INTROSPECTION("/api/rs/introspect");
+        TOKEN_INTROSPECTION("/api/rs/introspect"),
+        CLIENT_REG("/api/client/dyn_client_reg");
         private final String name;
         ASEndpoint(@NotNull final String name) {
             this.name = name;

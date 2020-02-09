@@ -35,21 +35,11 @@
     </properties>
 
     <dependencies>
-        <!--  BEGIN: OVERWRITE SDK INTERFACES      -->
         <dependency>
             <groupId>com.hivemq</groupId>
-            <artifactId>hivemq-extension-sdk-mod</artifactId>
-            <version>4.2.0</version>
-            <scope>system</scope>
-            <systemPath>${basedir}/maven-repo/hivemq-extension-sdk-4.2.0-SNAPSHOT.jar</systemPath>
+            <artifactId>hivemq-extension-sdk</artifactId>
+            <version>4.3.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-api -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.29</version>
-        </dependency>
-        <!--  END: OVERWRITE SDK INTERFACES      -->
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -211,7 +201,7 @@
                                     <goal>hivemq</goal>
                                 </goals>
                                 <configuration>
-                                    <hiveMQDir>/Users/mimicha2/mqtt/hivemq-community-edition/build/zip/hivemq-ce-2019.2-SNAPSHOT</hiveMQDir>
+                                    <hiveMQDir>/Users/mimicha2/mqtt/hivemq-community-edition/build/zip/hivemq-ce-2020.1</hiveMQDir>
                                     <debugMode>SERVER</debugMode>
                                 </configuration>
                             </execution>

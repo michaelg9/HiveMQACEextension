@@ -32,22 +32,26 @@
                 <client-authentication-mode>REQUIRED</client-authentication-mode>
                 <keystore>
                     <!-- Configuring the path to the key store -->
-                    <path>/opt/TLS/hivemq.jks</path>
+                    <path>/opt/config/TLS/hivemq.jks</path>
                     <!-- The password of the key store -->
                     <password>michaelg9</password>
                     <!-- The password of the private key -->
                     <private-key-password>michaelg9</private-key-password>
                 </keystore>
                 <truststore>
-                    <path>/opt/TLS/hivemq-trust-store.jks</path>
+                    <path>/opt/config/TLS/hivemq-trust-store.jks</path>
                     <password>michaelg9</password>
                 </truststore>
             </tls>
         </tls-tcp-listener>
     </listeners>
 
-    <anonymous-usage-statistics>
-        <enabled>true</enabled>
-    </anonymous-usage-statistics>
+    <overload-protection>
+        <enabled>false</enabled>
+    </overload-protection>
+    <restrictions>
+        <max-connections>-1</max-connections>
+        <incoming-bandwidth-throttling>0</incoming-bandwidth-throttling>
+    </restrictions>
 
 </hivemq>

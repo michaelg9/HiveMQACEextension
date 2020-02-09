@@ -1,0 +1,43 @@
+version: '3.5'
+services:
+  mongo:
+    image: "mongo:latest"
+    container_name: mongo_db
+    command:
+      - --dbpath=/opt/mongodb
+    volumes:
+      - ./config/mongodb:/opt/mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - ace_net
+  broker:
+    image: "michael/ace-mqtt:latest"
+    container_name: ace_broker
+    environment:
+#       java remote debugger
+      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
+    ports:
+      - "8883:8883"
+      - "1883:1883"
+      - "8010:8000"
+    volumes:
+    - ./config/broker:/opt/config:ro
+    networks:
+      - ace_net
+  asserver:
+    image: "ace-mqtt/as-server:latest"
+    restart: on-failure
+    container_name: ace_as
+    depends_on:
+      - mongo
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./config/as:/opt/config:ro
+    entrypoint: /opt/config/wait-for-mongo.sh
+    networks:
+      - ace_net
+networks:
+  ace_net:
+    name: ace_net

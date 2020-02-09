@@ -24,12 +24,16 @@ import com.hivemq.extension.sdk.api.parameter.ExtensionStartOutput;
 import com.hivemq.extension.sdk.api.parameter.ExtensionStopInput;
 import com.hivemq.extension.sdk.api.parameter.ExtensionStopOutput;
 import com.hivemq.extension.sdk.api.services.Services;
-import com.hivemq.extensions.oauth.authenticators.OAuthAuthenticationProvider;
+import com.hivemq.extensions.oauth.authenticators.OAuthProvider;
+import com.hivemq.extensions.oauth.http.OauthHttpsClient;
 import com.hivemq.extensions.oauth.utils.ServerConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.hivemq.extensions.oauth.utils.dataclasses.ClientRegistrationRequest;
+import com.hivemq.extensions.oauth.utils.dataclasses.ClientRegistrationResponse;
 
-import java.io.IOException;
+import java.util.logging.Logger;
+
+import static com.hivemq.extensions.oauth.utils.Constants.BROKER_CONFIG_DIR;
+import static com.hivemq.extensions.oauth.utils.Constants.HTTPS_PROTOCOL;
 
 /**
  * This is the main class of the extension,
@@ -40,20 +44,36 @@ import java.io.IOException;
  * @since 4.0.0
  */
 public class OAuthExtMain implements ExtensionMain {
-    private static final @NotNull Logger log = LoggerFactory.getLogger(OAuthExtMain.class);
-    private static ServerConfig serverConfig = ServerConfig.getConfig();
+    final static Logger LOGGER = Logger.getLogger(ExtensionMain.class.getName());
+    private static ServerConfig serverConfig;
 
-    public OAuthExtMain() {}
+    public OAuthExtMain() {
+    }
 
     @Override
     public void extensionStart(final @NotNull ExtensionStartInput extensionStartInput, final @NotNull ExtensionStartOutput extensionStartOutput) {
-        Services.securityRegistry().setAuthenticatorProvider(new OAuthAuthenticationProvider());
+        String configDir = System.getenv(BROKER_CONFIG_DIR);
+        if (configDir == null) {
+            throw new IllegalStateException("Unable to find broker configuration");
+        }
+        serverConfig = ServerConfig.getConfig(configDir);
+        if (!serverConfig.doesASinfoExist()) {
+            throw new IllegalStateException("AS information missing");
+        }
+        if (!serverConfig.isBrokerRegistered()) {
+            if (!serverConfig.canRegisterToAS()) throw new IllegalStateException("Missing client credentials");
+            ClientRegistrationResponse response = new OauthHttpsClient(HTTPS_PROTOCOL, serverConfig.getAsServerIP(), serverConfig.getAsServerPort())
+                    .registerClient(new ClientRegistrationRequest(serverConfig.getClientUsername(), serverConfig.getClientUri()));
+            serverConfig.setClientID(response.getClientID(), true);
+            serverConfig.setClientSecret(response.getClientSecret(), true);
+        }
+        Services.securityRegistry().setEnhancedAuthenticatorProvider(new OAuthProvider());
     }
 
     @Override
     public void extensionStop(final @NotNull ExtensionStopInput extensionStopInput, final @NotNull ExtensionStopOutput extensionStopOutput) {
         final ExtensionInformation extensionInformation = extensionStopInput.getExtensionInformation();
-        log.info("Stopped " + extensionInformation.getName() + ":" + extensionInformation.getVersion());
+        LOGGER.info("Stopped " + extensionInformation.getName() + ":" + extensionInformation.getVersion());
     }
 
     public static ServerConfig getServerConfig() {

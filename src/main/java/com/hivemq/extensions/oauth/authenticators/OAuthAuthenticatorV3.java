@@ -2,15 +2,25 @@ package com.hivemq.extensions.oauth.authenticators;
 
 import com.hivemq.extension.sdk.api.annotations.NotNull;
 import com.hivemq.extension.sdk.api.annotations.Nullable;
-import com.hivemq.extension.sdk.api.auth.SimpleAuthenticator;
-import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthInput;
-import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
-import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
+import com.hivemq.extension.sdk.api.auth.EnhancedAuthenticator;
+import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthConnectInput;
+import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthInput;
+import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthOutput;
+import com.hivemq.extension.sdk.api.auth.parameter.OverloadProtectionThrottlingLevel;
+import com.hivemq.extension.sdk.api.auth.parameter.TopicPermission;
+import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
+import com.hivemq.extension.sdk.api.packets.general.DisconnectedReasonCode;
 import com.hivemq.extensions.oauth.crypto.MACCalculator;
+import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
-import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME_PASSWORD_MISSING;
+import java.util.Optional;
+import java.util.logging.Level;
+
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
+import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
 
 /**
  * @author Michael Michaelides
@@ -19,28 +29,65 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.USERNAME
  * TODO: is input valid?
  */
 
-public class OAuthAuthenticatorV3 extends OAuthAuthenticator implements SimpleAuthenticator {
+public class OAuthAuthenticatorV3 extends OAuthAuthenticator implements EnhancedAuthenticator {
 
-    @Override
-    @Nullable AuthData parseAuthData(@NotNull SimpleAuthInput simpleAuthInput,
-                                     @NotNull SimpleAuthOutput simpleAuthOutput) {
+    @Nullable AuthData parseAuthData(@NotNull ConnectPacket connectPacket) {
         AuthData authData = new AuthData();
-        if (simpleAuthInput.getConnectPacket().getUserName().isPresent() &&
-                simpleAuthInput.getConnectPacket().getPassword().isPresent()) {
-            authData.setToken(simpleAuthInput.getConnectPacket().getUserName().get());
-            authData.setPop(simpleAuthInput.getConnectPacket().getPassword().get());
+        if (connectPacket.getUserName().isPresent() &&
+                connectPacket.getPassword().isPresent()) {
+            authData.setToken(connectPacket.getUserName().get());
+            authData.setPop(connectPacket.getPassword().get());
         }
         if (authData.getToken().isEmpty() || authData.getPOP().isEmpty()) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, USERNAME_PASSWORD_MISSING);
             authData = null;
         }
         return authData;
     }
 
     @Override
-    void proceedToChallenge(@NotNull IntrospectionResponse introspectionResponse,
-                            @NotNull MACCalculator macCalculator,
-                            @NotNull SimpleAuthOutput simpleAuthOutput) {
-        throw new IllegalStateException("Version 3 client for challenge auth");
+    public void onConnect(@NotNull EnhancedAuthConnectInput input, @NotNull EnhancedAuthOutput output) {
+        LOGGER.log(Level.FINE, String.format("Received client CONNECT:\t%s", input.getConnectPacket()));
+        Optional<String> errors = isInputValid(input.getConnectPacket());
+        if (errors.isPresent()) {
+            output.failAuthentication(DisconnectedReasonCode.PAYLOAD_FORMAT_INVALID, errors.get());
+            return;
+        }
+        AuthData authData = parseAuthData(input.getConnectPacket());
+        if (authData == null || authData.getToken().isEmpty() || authData.getPOP().isEmpty()) {
+            output.failAuthentication(DisconnectedReasonCode.NOT_AUTHORIZED, AUTH_SERVER_UNAVAILABLE);
+            return;
+        }
+        IntrospectionResponse introspectionResponse;
+        try {
+            introspectionResponse = super.introspectToken(authData.getToken().get());
+        } catch (ASUnreachableException e) {
+            e.printStackTrace();
+            output.failAuthentication(DisconnectedReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
+            return;
+        }
+        if (!introspectionResponse.isActive()) {
+            output.failAuthentication(DisconnectedReasonCode.NOT_AUTHORIZED, EXPIRED_TOKEN);
+            return;
+        }
+        MACCalculator macCalculator = new MACCalculator(
+                introspectionResponse.getCnf().getJwk().getK(),
+                introspectionResponse.getCnf().getJwk().getAlg());
+        boolean isValidPOP = macCalculator.isMacValid(authData.getPOP().get(), authData.getTokenAsBytes().get());
+        if (isValidPOP) {
+            authenticateClient(output, introspectionResponse);
+        } else {
+            output.failAuthentication(DisconnectedReasonCode.NOT_AUTHORIZED, POP_FAILED);
+        }
+    }
+
+    void authenticateClient(@NotNull EnhancedAuthOutput output, @NotNull final IntrospectionResponse introspectionResponse) {
+        TopicPermission permission = super.registerClient(introspectionResponse);
+        output.getDefaultPermissions().add(permission);
+        output.authenticateSuccessfully();
+    }
+
+    @Override
+    public void onAuth(@NotNull EnhancedAuthInput enhancedAuthInput, @NotNull EnhancedAuthOutput enhancedAuthOutput) {
+        enhancedAuthOutput.failAuthentication("Version 3 client can't use AUTH packets");
     }
 }

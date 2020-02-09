@@ -1,77 +1,29 @@
 package com.hivemq.extensions.oauth.authenticators;
 
 import com.hivemq.extension.sdk.api.annotations.NotNull;
-import com.hivemq.extension.sdk.api.annotations.Nullable;
-import com.hivemq.extension.sdk.api.auth.SimpleAuthenticator;
-import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthInput;
-import com.hivemq.extension.sdk.api.auth.parameter.SimpleAuthOutput;
+import com.hivemq.extension.sdk.api.auth.EnhancedAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.TopicPermission;
-import com.hivemq.extension.sdk.api.packets.connect.ConnackReasonCode;
+import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
 import com.hivemq.extensions.oauth.ClientRegistry;
 import com.hivemq.extensions.oauth.OAuthExtMain;
-import com.hivemq.extensions.oauth.crypto.MACCalculator;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
 import com.hivemq.extensions.oauth.http.OauthHttpsClient;
-import com.hivemq.extensions.oauth.utils.AuthData;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
-import java.util.logging.Level;
+import java.util.Optional;
 import java.util.logging.Logger;
 
-import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.AUTH_SERVER_UNAVAILABLE;
-import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.EXPIRED_TOKEN;
-import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAILED;
-
-public abstract class OAuthAuthenticator implements SimpleAuthenticator {
+public abstract class OAuthAuthenticator implements EnhancedAuthenticator {
     final static Logger LOGGER = Logger.getLogger(OAuthAuthenticator.class.getName());
     private final ClientRegistry clientRegistry = new ClientRegistry();
 
-    public void onConnect(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
-        LOGGER.log(Level.FINE, String.format("Received client CONNECT:\t%s", simpleAuthInput.getConnectPacket()));
-        if (!isInputValid(simpleAuthInput, simpleAuthOutput)) {
-            return;
+    Optional<String> isInputValid(@NotNull ConnectPacket connectPacket) {
+        String result = null;
+        if (!connectPacket.getCleanStart()) {
+            result = "Expecting clean start flag true";
         }
-        AuthData authData = parseAuthData(simpleAuthInput, simpleAuthOutput);
-        if (authData == null) return;
-        IntrospectionResponse introspectionResponse;
-        try {
-            introspectionResponse = introspectToken(authData.getToken().get());
-        } catch (ASUnreachableException e) {
-            e.printStackTrace();
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.SERVER_UNAVAILABLE, AUTH_SERVER_UNAVAILABLE);
-            return;
-        }
-        if (!introspectionResponse.isActive()) {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.BAD_USER_NAME_OR_PASSWORD, EXPIRED_TOKEN);
-            return;
-        }
-        MACCalculator macCalculator = new MACCalculator(
-                introspectionResponse.getCnf().getJwk().getK(),
-                introspectionResponse.getCnf().getJwk().getAlg());
-        if (authData.getPOP().isEmpty()) {
-            proceedToChallenge(introspectionResponse, macCalculator, simpleAuthOutput);
-            return;
-        }
-        boolean isValidPOP = macCalculator.isMacValid(authData.getPOP().get(), authData.getTokenAsBytes().get());
-        if (isValidPOP) {
-            authenticateClient(simpleAuthOutput, introspectionResponse);
-        } else {
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.NOT_AUTHORIZED, POP_FAILED);
-        }
+        return Optional.ofNullable(result);
     }
-
-    boolean isInputValid(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput) {
-        boolean result = true;
-        if (!simpleAuthInput.getConnectPacket().getCleanStart()) {
-            result = false;
-            simpleAuthOutput.failAuthentication(ConnackReasonCode.PAYLOAD_FORMAT_INVALID, "Expecting clean start flag true");
-        }
-        return result;
-    }
-
-    abstract @Nullable AuthData parseAuthData(@NotNull SimpleAuthInput simpleAuthInput, @NotNull SimpleAuthOutput simpleAuthOutput);
-
-    abstract void proceedToChallenge(@NotNull final IntrospectionResponse introspectionResponse, @NotNull final MACCalculator macCalculator, @NotNull SimpleAuthOutput simpleAuthOutput);
 
     synchronized TopicPermission registerClient(@NotNull final IntrospectionResponse introspectionResponse) {
         final String clientID = introspectionResponse.getSub();
@@ -86,12 +38,6 @@ public abstract class OAuthAuthenticator implements SimpleAuthenticator {
         final String protocol = OAuthExtMain.getServerConfig().getAsServerProtocol();
         OauthHttpsClient oauthHttpsClient = new OauthHttpsClient(protocol, asServer, port);
         return oauthHttpsClient.tokenIntrospectionRequest(clientSecret, token);
-    }
-
-    void authenticateClient(@NotNull SimpleAuthOutput simpleAuthOutput, @NotNull final IntrospectionResponse introspectionResponse) {
-        TopicPermission permission = registerClient(introspectionResponse);
-        simpleAuthOutput.getDefaultPermissions().add(permission);
-        simpleAuthOutput.authenticateSuccessfully();
     }
 
 }
