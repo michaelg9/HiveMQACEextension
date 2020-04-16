@@ -1,4 +1,4 @@
-FROM hivemq/hivemq-ce:snapshot
+FROM hivemq/hivemq-ce:latest
 
 COPY config/broker/config.xml /opt/hivemq/conf/config.xml
 COPY /oauth-hivemq /opt/hivemq/extensions/oauth-hivemq
