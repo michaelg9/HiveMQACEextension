@@ -7,15 +7,15 @@ import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
 import com.hivemq.extensions.oauth.ClientRegistry;
 import com.hivemq.extensions.oauth.OAuthExtMain;
 import com.hivemq.extensions.oauth.exceptions.ASUnreachableException;
-import com.hivemq.extensions.oauth.http.OauthHttpsClient;
+import com.hivemq.extensions.oauth.http.HttpsClient;
 import com.hivemq.extensions.oauth.utils.dataclasses.IntrospectionResponse;
 
 import java.util.Optional;
 import java.util.logging.Logger;
 
-public abstract class OAuthAuthenticator implements EnhancedAuthenticator {
-    final static Logger LOGGER = Logger.getLogger(OAuthAuthenticator.class.getName());
-    private final ClientRegistry clientRegistry = new ClientRegistry();
+public abstract class ACEAuthenticator implements EnhancedAuthenticator {
+    final static Logger LOGGER = Logger.getLogger(ACEAuthenticator.class.getName());
+    private static final ClientRegistry clientRegistry = new ClientRegistry();
 
     Optional<String> isInputValid(@NotNull ConnectPacket connectPacket) {
         String result = null;
@@ -36,8 +36,12 @@ public abstract class OAuthAuthenticator implements EnhancedAuthenticator {
         final byte[] clientSecret = OAuthExtMain.getServerConfig().getClientSecrets();
         final String port = OAuthExtMain.getServerConfig().getAsServerPort();
         final String protocol = OAuthExtMain.getServerConfig().getAsServerProtocol();
-        OauthHttpsClient oauthHttpsClient = new OauthHttpsClient(protocol, asServer, port);
-        return oauthHttpsClient.tokenIntrospectionRequest(clientSecret, token);
+        HttpsClient httpsClient = new HttpsClient(protocol, asServer, port);
+        return httpsClient.tokenIntrospectionRequest(clientSecret, token);
+    }
+
+    public static ClientRegistry getClientRegistry() {
+        return clientRegistry;
     }
 
 }

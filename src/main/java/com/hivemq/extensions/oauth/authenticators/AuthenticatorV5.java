@@ -6,7 +6,6 @@ import com.hivemq.extension.sdk.api.auth.EnhancedAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthConnectInput;
 import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthInput;
 import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthOutput;
-import com.hivemq.extension.sdk.api.auth.parameter.OverloadProtectionThrottlingLevel;
 import com.hivemq.extension.sdk.api.auth.parameter.TopicPermission;
 import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
 import com.hivemq.extension.sdk.api.packets.general.DisconnectedReasonCode;
@@ -39,13 +38,17 @@ import static com.hivemq.extensions.oauth.utils.StringUtils.bytesToHex;
  * Supports v5 ACE authentication
  */
 
-public class OAuthAuthenticatorV5 extends OAuthAuthenticator implements EnhancedAuthenticator {
+public class AuthenticatorV5 extends ACEAuthenticator implements EnhancedAuthenticator {
     private Map<String, PendingAuthenticationDetails> nonceMap = new ConcurrentHashMap<>();
 
     @Override
     public void onConnect(@NotNull EnhancedAuthConnectInput enhancedAuthConnectInput, @NotNull EnhancedAuthOutput enhancedAuthOutput) {
         ConnectPacket connectPacket = enhancedAuthConnectInput.getConnectPacket();
         LOGGER.log(Level.FINE, String.format("Received client CONNECT:\t%s", connectPacket));
+        if (!isACEAuthMethod(connectPacket)) {
+            enhancedAuthOutput.nextExtensionOrDefault();
+            return;
+        }
         if (isASDiscovery(connectPacket)) {
             final URL asServerUri = OAuthExtMain.getServerConfig().getAsServerURI();
             final String asServer = asServerUri == null ? "" : asServerUri.toString();

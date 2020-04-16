@@ -31,12 +31,12 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class OauthHttpsClient {
-    private final static Logger LOGGER = Logger.getLogger(OauthHttpsClient.class.getName());
+public class HttpsClient {
+    private final static Logger LOGGER = Logger.getLogger(HttpsClient.class.getName());
     private final EndpointRetriever endpointRetriever;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OauthHttpsClient(String protocol, String OauthServerAddress, String OauthServerPort) {
+    public HttpsClient(String protocol, String OauthServerAddress, String OauthServerPort) {
         endpointRetriever = new EndpointRetriever(protocol, OauthServerAddress, OauthServerPort);
     }
 

@@ -9,10 +9,10 @@ import com.hivemq.extension.sdk.api.services.auth.provider.EnhancedAuthenticator
 
 import java.util.logging.Logger;
 
-public class OAuthProvider implements EnhancedAuthenticatorProvider {
-    final static Logger LOGGER = Logger.getLogger(OAuthProvider.class.getName());
-    private final OAuthAuthenticatorV5 authenticatorv5 = new OAuthAuthenticatorV5();
-    private final OAuthAuthenticatorV3 authenticatorv3 = new OAuthAuthenticatorV3();
+public class ACEAuthenticatorProvider implements EnhancedAuthenticatorProvider {
+    final static Logger LOGGER = Logger.getLogger(ACEAuthenticatorProvider.class.getName());
+    private final AuthenticatorV5 authenticatorv5 = new AuthenticatorV5();
+    private final AuthenticatorV3 authenticatorv3 = new AuthenticatorV3();
 
     @Override
     public @Nullable EnhancedAuthenticator getEnhancedAuthenticator(@NotNull AuthenticatorProviderInput authenticatorProviderInput) {

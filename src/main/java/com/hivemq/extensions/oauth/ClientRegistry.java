@@ -42,4 +42,5 @@ public class ClientRegistry {
                 .retain(TopicPermission.Retain.ALL)
                 .build();
     }
+
 }

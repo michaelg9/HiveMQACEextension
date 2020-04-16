@@ -24,8 +24,10 @@ import com.hivemq.extension.sdk.api.parameter.ExtensionStartOutput;
 import com.hivemq.extension.sdk.api.parameter.ExtensionStopInput;
 import com.hivemq.extension.sdk.api.parameter.ExtensionStopOutput;
 import com.hivemq.extension.sdk.api.services.Services;
-import com.hivemq.extensions.oauth.authenticators.OAuthProvider;
-import com.hivemq.extensions.oauth.http.OauthHttpsClient;
+import com.hivemq.extensions.oauth.authenticators.ACEAuthenticatorProvider;
+import com.hivemq.extensions.oauth.authorizer.AceAuthorizerProvider;
+import com.hivemq.extensions.oauth.authorizer.AcePublishOutboundInterceptor;
+import com.hivemq.extensions.oauth.http.HttpsClient;
 import com.hivemq.extensions.oauth.utils.ServerConfig;
 import com.hivemq.extensions.oauth.utils.dataclasses.ClientRegistrationRequest;
 import com.hivemq.extensions.oauth.utils.dataclasses.ClientRegistrationResponse;
@@ -62,12 +64,20 @@ public class OAuthExtMain implements ExtensionMain {
         }
         if (!serverConfig.isBrokerRegistered()) {
             if (!serverConfig.canRegisterToAS()) throw new IllegalStateException("Missing client credentials");
-            ClientRegistrationResponse response = new OauthHttpsClient(HTTPS_PROTOCOL, serverConfig.getAsServerIP(), serverConfig.getAsServerPort())
+            ClientRegistrationResponse response = new HttpsClient(HTTPS_PROTOCOL, serverConfig.getAsServerIP(), serverConfig.getAsServerPort())
                     .registerClient(new ClientRegistrationRequest(serverConfig.getClientUsername(), serverConfig.getClientUri()));
             serverConfig.setClientID(response.getClientID(), true);
             serverConfig.setClientSecret(response.getClientSecret(), true);
         }
-        Services.securityRegistry().setEnhancedAuthenticatorProvider(new OAuthProvider());
+        Services.securityRegistry().setEnhancedAuthenticatorProvider(new ACEAuthenticatorProvider());
+        Services.securityRegistry().setAuthorizerProvider(new AceAuthorizerProvider());
+        try {
+
+            Services.initializerRegistry().setClientInitializer((initializerInput, clientContext) -> clientContext.addPublishOutboundInterceptor(new AcePublishOutboundInterceptor()));
+
+        } catch (Exception e) {
+            LOGGER.warning("Exception thrown at extension start: " + e);
+        }
     }
 
     @Override

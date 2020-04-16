@@ -6,7 +6,6 @@ import com.hivemq.extension.sdk.api.auth.EnhancedAuthenticator;
 import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthConnectInput;
 import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthInput;
 import com.hivemq.extension.sdk.api.auth.parameter.EnhancedAuthOutput;
-import com.hivemq.extension.sdk.api.auth.parameter.OverloadProtectionThrottlingLevel;
 import com.hivemq.extension.sdk.api.auth.parameter.TopicPermission;
 import com.hivemq.extension.sdk.api.packets.connect.ConnectPacket;
 import com.hivemq.extension.sdk.api.packets.general.DisconnectedReasonCode;
@@ -29,7 +28,7 @@ import static com.hivemq.extensions.oauth.utils.Constants.ErrorMessages.POP_FAIL
  * TODO: is input valid?
  */
 
-public class OAuthAuthenticatorV3 extends OAuthAuthenticator implements EnhancedAuthenticator {
+public class AuthenticatorV3 extends ACEAuthenticator implements EnhancedAuthenticator {
 
     @Nullable AuthData parseAuthData(@NotNull ConnectPacket connectPacket) {
         AuthData authData = new AuthData();

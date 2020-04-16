@@ -16,6 +16,12 @@ public final class IntrospectionResponse {
     private SCOPE[] scope;
     private CNF cnf;
 
+    public void setAud(String aud) { this.aud = aud;}
+
+    public void setScope(SCOPE[] scope) { this.scope = scope;}
+
+    public void setSub(String sub) { this.sub = sub;}
+
     public boolean isActive() {
         return active;
     }
